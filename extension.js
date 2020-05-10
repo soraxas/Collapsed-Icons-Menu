@@ -30,6 +30,7 @@ const { GObject, Gio, Gtk, GLib, St, Clutter } = imports.gi;
 const PanelMenu = imports.ui.panelMenu;
 const PopupMenu = imports.ui.popupMenu;
 const Mainloop = imports.mainloop;
+const Me = imports.misc.extensionUtils.getCurrentExtension();
 
 // const Extension = imports.misc.extensionUtils.getCurrentExtension();
 // const ArgosLineView = Extension.imports.lineview.ArgosLineView;
@@ -202,6 +203,14 @@ const ArgosButton = GObject.registerClass(class ArgosButton extends PanelMenu.Bu
     _init(file, settings) {
         super._init(0.5, 'collapse-menu', false);
 
+        this._icon = new St.Icon({
+            style_class: 'popup-menu-icon'
+            // style_class: 'system-status-icon'
+        });
+        // this._icon.gicon = Gio.icon_new_for_string(`${Me.path}/icons/menu-down-outline.svg`);
+        this._icon.gicon = Gio.icon_new_for_string(`${Me.path}/icons/collapsed-icon.svg`);
+
+        this.actor.add_actor(this._icon);
         this._hidden_icon_menuitem = {};
         
         // this._status_icon_to_hide = ["Caffeine"];
@@ -225,8 +234,12 @@ const ArgosButton = GObject.registerClass(class ArgosButton extends PanelMenu.Bu
         
         this._hidden_status_icons = {};
         // return;
-        let label = new St.Label({ text: 'HEYO Button' });
-        this.actor.add_child(label);
+        // let label = new St.Label({ text: 'HEYO Button' });
+        let label = new St.Label({
+            y_align: Clutter.ActorAlign.CENTER,
+            text: _('…')
+        });
+        // this.actor.add_child(label);
         
 
 
