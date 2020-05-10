@@ -200,8 +200,11 @@ class HiddenStatusIcon extends PopupMenu.PopupBaseMenuItem {
 
 const ArgosButton = GObject.registerClass(class ArgosButton extends PanelMenu.Button {
 
-    _init(file, settings) {
+    _init(file, settings, keep_at_leftmost=true) {
         super._init(0.5, 'collapse-menu', false);
+        
+        // if set to true, this extensino will always to keep itself to be the left most icon
+        this.keep_at_leftmost = keep_at_leftmost;
 
         this._icon = new St.Icon({
             style_class: 'popup-menu-icon'
@@ -306,6 +309,9 @@ const ArgosButton = GObject.registerClass(class ArgosButton extends PanelMenu.Bu
         
     }
 
+    notify(msg) {
+        Main.notify("Collapsed-icon-menu", ""+msg)
+    }
 
     update() {
         let sortedName = [];
@@ -318,28 +324,32 @@ const ArgosButton = GObject.registerClass(class ArgosButton extends PanelMenu.Bu
         
         this.submenu_nonhidden_icons.menu.removeAll();
         // menu for showing what icons are available to hide
-        for (let statusButtonName of sortedName) {
-
-            let _indicator = Main.panel.statusArea[statusButtonName];
-            
-            // display available icon to be hidden
-            if (
-                // statusButtonName in this._hidden_status_icons || 
-                _indicator.is_visible() && 
-                _indicator != this) {
-                    // create switches
-                    let menuItem = this._createSwitchMenu(statusButtonName)
-                    this.submenu_nonhidden_icons.menu.addMenuItem(menuItem);
-                    if (this._status_icon_to_hide.has(statusButtonName)) {
-                        menuItem.setToggleState(true);
-                    }
+        try {
+            for (let statusButtonName of sortedName) {
+    
+                let _indicator = Main.panel.statusArea[statusButtonName];
+                
+                // display available icon to be hidden
+                if (
+                    // statusButtonName in this._hidden_status_icons || 
+                    _indicator.is_visible() && 
+                    _indicator != this) {
+                        // create switches
+                        let menuItem = this._createSwitchMenu(statusButtonName)
+                        this.submenu_nonhidden_icons.menu.addMenuItem(menuItem);
+                        if (this._status_icon_to_hide.has(statusButtonName)) {
+                            menuItem.setToggleState(true);
+                        }
+                }
+                ////////////////////////////////////////////////////////////
+                ////////////////////////////////////////////////////////////
+                // restore any icons that should be restored
+                if (statusButtonName in this._hidden_icon_menuitem && !this._status_icon_to_hide.has(statusButtonName)){
+                    this.restoreIcon(statusButtonName);
+                }
             }
-            ////////////////////////////////////////////////////////////
-            ////////////////////////////////////////////////////////////
-            // restore any icons that should be restored
-            if (statusButtonName in this._hidden_icon_menuitem && !this._status_icon_to_hide.has(statusButtonName)){
-                this.restoreIcon(statusButtonName);
-            }
+        } catch (ex) {
+            this.notify("Error occurs when populating icon list: " + e)
         }
 
         // hide icons
@@ -347,40 +357,36 @@ const ArgosButton = GObject.registerClass(class ArgosButton extends PanelMenu.Bu
 
             if (statusButtonName in this._hidden_icon_menuitem) {
                 // this icon should have been hidden. Ensure it.
-
-                // ensure it's always in-reactive
-                this._hidden_icon_menuitem[statusButtonName].indicator.reactive = false;
-
-                
-                let parentsDiffer = false;
-
-                if (Main.panel.statusArea[statusButtonName].container.get_parent() != this._hidden_icon_menuitem[statusButtonName].new_parent) {
-                    // parents differ!
-                    parentsDiffer = true;
+                try {
+                    // ensure it's always in-reactive
+                    this._hidden_icon_menuitem[statusButtonName].indicator.reactive = false;
+    
+                    let parentsDiffer = false;
+    
+                    if (Main.panel.statusArea[statusButtonName].container.get_parent() != this._hidden_icon_menuitem[statusButtonName].new_parent) {
+                        // parents differ!
+                        parentsDiffer = true;
+                    }
+    
+                    if (parentsDiffer) {
+                        // return;
+                        // something went wrong, this icon is NO LONGER UNDER OUR CONTROL!!!
+                        // probably gnome-shell reset the icon's actor to topbar. Redo the hiding procedure.
+                        this.onDestroyedExternally(statusButtonName)
+                    }
+                } catch (ex) {
+                    this.notify("Error occurs when re-hiding: " + statusButtonName + " - " + e)
                 }
-                
-
-                // let _indicator = this._hidden_status_icons[statusButtonName].indicator;
-                // _indicator.reactive = false;
-                // hiddenIconParent = _indicator.container.get_parent();
-                // if (!this._hidden_icon_parents.has(hiddenIconParent)) {
-                // }
-
-
-
-                if (parentsDiffer) {
-                    // return;
-                    // something went wrong, this icon is NO LONGER UNDER OUR CONTROL!!!
-                    // probably gnome-shell reset the icon's actor to topbar. Redo the hiding procedure.
-                    this.onDestroyedExternally(statusButtonName)
-                }
-
                 // already hidden
                 continue;
             }
 
             if (this._status_icon_to_hide.has(statusButtonName) && !(statusButtonName in this._hidden_icon_menuitem)) {
-                this.hideIcon(statusButtonName);
+                try {
+                    this.hideIcon(statusButtonName);
+                }catch (ex) {
+                    this.notify("Error occurs when hiding: " + statusButtonName + " - " + e)
+                }
             }
         }
 
@@ -416,6 +422,12 @@ const ArgosButton = GObject.registerClass(class ArgosButton extends PanelMenu.Bu
         //     let submenuItem = new HiddenStatusIcon(c);
         //     this.submenu_hidden_icons.menu.addMenuItem(submenuItem)
         // }
+
+        if (this.keep_at_leftmost) {
+            // move this icon to left most
+            // this.get_parent() should returns the panel-menuItem
+            Main.panel._rightBox.set_child_at_index(this.get_parent(), 0);
+        }
 
 
     }
