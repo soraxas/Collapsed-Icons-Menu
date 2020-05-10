@@ -332,7 +332,7 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
 
 
 
-``
+        // List to myself's menu open
         this.menu.connect("open-state-changed", (menu, open) => {
             // Main.notify('Example Notification', "hi " + open);
             // Main.notify('Example Notification', "hi " + this);
@@ -343,9 +343,10 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
                 this.submenu_hidden_icons.menu.open();
             }
         });
-
+        // Bind destory callback
         this.actor.connect('destroy', this._onDestroy.bind(this));
-        
+        // Listen to multiple source's update, to automatically update the icon collapsing.
+        Main.sessionMode.connect('updated', () => this.update());
     }
 
     notify(msg) {
