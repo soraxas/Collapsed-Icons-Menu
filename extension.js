@@ -56,7 +56,7 @@ var NoEventButton = GObject.registerClass(
             if (event.type() == Clutter.EventType.BUTTON_PRESS) {
                 // emit it back into the container's child
                 
-                // Main.panel.statusArea["collapsed-icon-menu"].submenu_hidden_icons.menu._getMenuItems()[1].container_button.asdasdasd
+                // Main.panel.statusArea["collapsed-icons-menu"].submenu_hidden_icons.menu._getMenuItems()[1].container_button.asdasdasd
                 this.indicator.emit("button-press-event", event)
                 this.asdasdasd=event;
             }
@@ -210,7 +210,7 @@ class HiddenStatusIcon extends PopupMenu.PopupBaseMenuItem {
 const ArgosButton = GObject.registerClass(class ArgosButton extends PanelMenu.Button {
 
     _init(file, settings, keep_at_leftmost=true) {
-        super._init(0.5, 'collapse-menu', false);
+        super._init(0.5, 'collapsed-icons-menu', false);
         
         // if set to true, this extensino will always to keep itself to be the left most icon
         this.keep_at_leftmost = keep_at_leftmost;
@@ -319,7 +319,7 @@ const ArgosButton = GObject.registerClass(class ArgosButton extends PanelMenu.Bu
     }
 
     notify(msg) {
-        Main.notify("Collapsed-icon-menu", ""+msg)
+        Main.notify("Collapsed-icons-menu", ""+msg)
     }
 
     update() {
@@ -445,11 +445,11 @@ const ArgosButton = GObject.registerClass(class ArgosButton extends PanelMenu.Bu
         this._status_icon_to_hide.add(name);
         let _indicator = Main.panel.statusArea[name];
         if (!_indicator) {
-            Main.notify("Collapsed-Icon-Menu", "Icon " + name + " does not exists")
+            Main.notify("Collapsed-Icons-Menu", "Icon " + name + " does not exists")
             return;
         }
         if (name in this._hidden_icon_menuitem) {
-            Main.notify("Collapsed-Icon-Menu", "Icon " + name + " is already hidden")
+            Main.notify("Collapsed-Icons-Menu", "Icon " + name + " is already hidden")
             return;
         }
         //////////////////////////////
@@ -501,7 +501,7 @@ const ArgosButton = GObject.registerClass(class ArgosButton extends PanelMenu.Bu
     restoreIcon(name) {
         this._status_icon_to_hide.delete(name);
         if (!(name in this._hidden_icon_menuitem)) {
-            Main.notify("Collapsed-Icon-Menu", "Icon " + name + " is not hidden")
+            Main.notify("Collapsed-Icons-Menu", "Icon " + name + " is not hidden")
             return;
         }
 
@@ -538,64 +538,75 @@ const ArgosButton = GObject.registerClass(class ArgosButton extends PanelMenu.Bu
         return switchmenuitem;
     }
 
-    _onDestroy() {
-        this._isDestroyed = true;
-
+    destroy() {
         this.menu.removeAll();
+        this.submenu_hidden_icons.menu.removeAll();
+        this.submenu_nonhidden_icons.menu.removeAll();
+        super.destroy();
     }
 });
 
 
 
-class Extension {
+class CollapsedIconMenuExtension {
     constructor() {
-        
-    }
-    
-    enable() {
-        let settings = {
+        Main.notify('Example Notification', "con");
+        this.settings = {
             updateOnOpen: false,
             updateInterval: null,
             position: 0,
             box: "right"
         };
+        this.cim_indicator = null;
+    }
     
-        let button = new ArgosButton("asd", settings)
-        // let _indicator = new HelloWorld_Indicator();
-        Main.panel.addToStatusArea("collapsed-icon-menu", button, settings.position, settings.box);
+    enable() {
+        Main.notify('Example Notification', "enabling");
+        
+        this.cim_indicator = new ArgosButton("asd", this.settings)
+        Main.panel.addToStatusArea("collapsed-icons-menu", this.cim_indicator,
+                                    this.settings.position,
+                                    this.settings.box);
+        // let button = new ArgosButton("asd", settings)
+        // // let _indicator = new HelloWorld_Indicator();
+        // Main.panel.addToStatusArea("collapsed-icons-menu", button, settings.position, settings.box);
         // Main.panel._addToPanelBox('HelloWorld', _indicator, 1, Main.panel._rightBox);
     }
     
     disable() {
         // Main.notify('Example Notification', "Disaaaaaaaaaaaaaaaaaaabling");
-        button.stop();
-        button.destroy();
-        Main.notify('Example Notification', "Disabling done");
+        if (this.cim_indicator){
+            this.cim_indicator.destroy();
+            this.cim_indicator = null;
+
+        }
     }
 }
 
 function init() {
-    // return new Extension();
+    return new CollapsedIconMenuExtension();
 }
 
-function enable() {
-    let settings = {
-        updateOnOpen: false,
-        updateInterval: null,
-        position: 0,
-        box: "right"
-    };
+// function enable() {
+//     // Main.notify('Example Notification', "enabling");
+//     let settings = {
+//         updateOnOpen: false,
+//         updateInterval: null,
+//         position: 0,
+//         box: "right"
+//     };
 
-    let button = new ArgosButton("asd", settings)
-    // let _indicator = new HelloWorld_Indicator();
-    Main.panel.addToStatusArea("collapsed-icon-menu", button, settings.position, settings.box);
-    // Main.panel._addToPanelBox('HelloWorld', _indicator, 1, Main.panel._rightBox);
-}
+//     let cim_indicator = new ArgosButton("asd", settings)
+//     Main.panel.addToStatusArea("collapsed-icons-menu", cim_indicator, settings.position, settings.box);
+//     // let _indicator = new HelloWorld_Indicator();
+//     // Main.panel._addToPanelBox('HeSlloWorld', _indicator, 1, Main.panel._rightBox);
+//     // Main.notify('Example Notification', "enabled");
+// }
 
-function disable() {
-    Main.notify('Example Notification', "Disabling");
-    button.stop();
-    button.destroy();
-    Main.notify('Example Notification', "Disabling done");
-    // return new Extension();
-}
+// function disable() {
+//     // Main.notify('Example Notification', "Disabling");
+//     // cim_indicator.stop();
+//     cim_indicator.destroy();
+//     cim_indicator = null;
+//     // Main.notify('Example Notification', "Disabling done");
+// }
