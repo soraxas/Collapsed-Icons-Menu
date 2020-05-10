@@ -1,0 +1,8 @@
+{
+  "name": "Collapsed Icon Menu",
+  "description": "To collapse icon into a unified menu",
+  "uuid": "collapse-menu@tinyiu.com",
+  "shell-version": [
+    "3.36"
+  ]
+}
