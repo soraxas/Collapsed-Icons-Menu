@@ -73,6 +73,9 @@ class HiddenStatusIcon extends PopupMenu.PopupBaseMenuItem {
         this.original_parent = indicator.container.get_parent();
         this.isDestroyed = false;
         this.original_reactive = indicator.reactive;
+        // this keep track of the icon's original index
+        let _panel_icon = indicator.get_parent();
+        this.original_index = _panel_icon.get_parent().get_children().indexOf(_panel_icon);
 
         const STYLE1 = 'width: 120px;';
         const STYLE2 = 'font-weight: bold;';
@@ -175,8 +178,14 @@ class HiddenStatusIcon extends PopupMenu.PopupBaseMenuItem {
                 parent.remove_actor(container);
             }
             // reset back to it's parent actor
-            if (this.original_parent)
-                this.original_parent.insert_child_at_index(container, 0)
+            if (this.original_parent) {
+                // try to restore to it's original index if it is a valid index
+                let restore_index = 0;
+                if (this.original_index >= 0) {
+                    restore_index = this.original_index;
+                }
+                this.original_parent.insert_child_at_index(container, restore_index)
+            }
             // reset reactive
             container.show();
             this.indicator.reactive = this.original_reactive
