@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="extensions-collapsed-icons-menu">
+  <schema path="/org/gnome/shell/extensions/collapsed-icons-menu/" id="org.gnome.shell.extensions.collapsed-icons-menu">
+    <key type="s" name="extension-version">
+        <default>"1.0"</default>
+        <summary>Extension version.</summary>
+      <description>Extension version for display in extension preferences.</description>
+    </key>
+    <key type="as" name="status-icons-name-to-hide">
+        <default>[]</default>
+        <summary>Array of status icon name to hide.</summary>
+      <description>An array of strings which denotes the name of status icon to collapse (hide).</description>
+    </key>
+  </schema>
+</schemalist>

@@ -42,9 +42,21 @@ const Main = imports.ui.main;
 
 var NoEventButton = GObject.registerClass(
     class NoEventButton extends St.Button {
+        /* This class is to stop contained items being reactive to hover action.
+        The issue being: 
+            (1) when a menu is opened, moving mouse to another panel button will
+                automatically open the new hovering icon's menu, and
+            (2) when 1 occurs in a nested menu scenario (i.e. a trying to open a
+                new popup menu as a menu item in another already opened popup menu)
+                the new one will tries to opens, then the old one will closes, and
+            (3) because the new popupmenu's actor is the old's popup menu, the new
+                popup menu will closes as well (because its parent is closing).
+            ALL IN ALL, this eventButton stops event passing onto contained
+            icons by setting XXX.reactive = false, and manually passing button-press
+            event to its contained item (this is to try and block Clutter.EventType.ENTER
+                and Clutter.EventType.MOVE) from the contained item. */
 
-        _init(indicator, mainMenu, statusIconName, params){
-            this.mainMenu = mainMenu;
+        _init(indicator, statusIconName, params){
             this.indicator = indicator;
             this.statusIconName = statusIconName;
             this.indicator.reactive = false;
@@ -52,17 +64,12 @@ var NoEventButton = GObject.registerClass(
         }
 
         vfunc_event(event) {
-            
             if (event.type() == Clutter.EventType.BUTTON_PRESS) {
                 // emit it back into the container's child
-                
-                // Main.panel.statusArea["collapsed-icons-menu"].submenu_hidden_icons.menu._getMenuItems()[1].container_button.asdasdasd
                 this.indicator.emit("button-press-event", event)
-                this.asdasdasd=event;
             }
             return Clutter.EVENT_PROPAGATE;
         }
-
 });
 
 var HiddenStatusIcon = GObject.registerClass(
@@ -148,7 +155,7 @@ class HiddenStatusIcon extends PopupMenu.PopupBaseMenuItem {
 
         this.icon_name_button = new St.Button({ child: icon_name });
         // this.container_button = new St.Button({ child: container });
-        this.container_button = new NoEventButton(indicator, mainMenu, container_name, { child: container });
+        this.container_button = new NoEventButton(indicator, container_name, { child: container });
     
         
         
@@ -207,10 +214,12 @@ class HiddenStatusIcon extends PopupMenu.PopupBaseMenuItem {
 
 });
 
-const ArgosButton = GObject.registerClass(class ArgosButton extends PanelMenu.Button {
+const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extends PanelMenu.Button {
 
-    _init(file, settings, keep_at_leftmost=true) {
+    _init(gsettings, keep_at_leftmost=true) {
         super._init(0.5, 'collapsed-icons-menu', false);
+
+        this._settings = gsettings;
         
         // if set to true, this extensino will always to keep itself to be the left most icon
         this.keep_at_leftmost = keep_at_leftmost;
@@ -226,8 +235,12 @@ const ArgosButton = GObject.registerClass(class ArgosButton extends PanelMenu.Bu
         this._hidden_icon_menuitem = {};
         
         // this._status_icon_to_hide = ["Caffeine"];
-        this._status_icon_to_hide = new Set();
-        this._status_icon_to_hide.add("argos-button-2");
+        // load from gsettings
+        let icons_to_hide = this._settings.get_value("status-icons-name-to-hide").deep_unpack();
+        if (!icons_to_hide) {
+            icons_to_hide = []
+        }
+        this._status_icon_to_hide = new Set(icons_to_hide);
         // this._status_icon_to_hide.add("Caffeine");
         
         // this set is to keep track of all hidden icon's parent under our control,
@@ -440,9 +453,16 @@ const ArgosButton = GObject.registerClass(class ArgosButton extends PanelMenu.Bu
 
 
     }
+    
+    update_gsettings() {
+        let tmpVairant = new GLib.Variant('as', Array.from(this._status_icon_to_hide));
+        this._settings.set_value("status-icons-name-to-hide", tmpVairant);
+    }
 
     hideIcon(name) {
         this._status_icon_to_hide.add(name);
+        // update gsettings
+        this.update_gsettings();
         let _indicator = Main.panel.statusArea[name];
         if (!_indicator) {
             Main.notify("Collapsed-Icons-Menu", "Icon " + name + " does not exists")
@@ -500,6 +520,8 @@ const ArgosButton = GObject.registerClass(class ArgosButton extends PanelMenu.Bu
 
     restoreIcon(name) {
         this._status_icon_to_hide.delete(name);
+        // update gsettings
+        this.update_gsettings();
         if (!(name in this._hidden_icon_menuitem)) {
             Main.notify("Collapsed-Icons-Menu", "Icon " + name + " is not hidden")
             return;
@@ -558,27 +580,34 @@ class CollapsedIconMenuExtension {
             box: "right"
         };
         this.cim_indicator = null;
+
+        const ExtensionUtils = imports.misc.extensionUtils;
+        // If `settings-schema` is defined in `metadata.json` you can simply call this
+        // this function without an argument.
+        this._settings = ExtensionUtils.getSettings();
+
+        // // You can also use this function to safely create a GSettings object for other
+        // // schemas without knowing whether they exist or not.
+        // let nautilusSettings = null;
+
+        // try {
+        //     nautilusSettings = ExtensionUtils.getSettings('org.gnome.nautilus');
+        // } catch (e) {
+        //     logError(e, 'Failed to load Nautilus settings');
+        // }
     }
     
     enable() {
-        Main.notify('Example Notification', "enabling");
-        
-        this.cim_indicator = new ArgosButton("asd", this.settings)
+        this.cim_indicator = new CollapsedIconsMenu(this._settings)
         Main.panel.addToStatusArea("collapsed-icons-menu", this.cim_indicator,
                                     this.settings.position,
                                     this.settings.box);
-        // let button = new ArgosButton("asd", settings)
-        // // let _indicator = new HelloWorld_Indicator();
-        // Main.panel.addToStatusArea("collapsed-icons-menu", button, settings.position, settings.box);
-        // Main.panel._addToPanelBox('HelloWorld', _indicator, 1, Main.panel._rightBox);
     }
     
     disable() {
-        // Main.notify('Example Notification', "Disaaaaaaaaaaaaaaaaaaabling");
         if (this.cim_indicator){
             this.cim_indicator.destroy();
             this.cim_indicator = null;
-
         }
     }
 }
@@ -586,27 +615,3 @@ class CollapsedIconMenuExtension {
 function init() {
     return new CollapsedIconMenuExtension();
 }
-
-// function enable() {
-//     // Main.notify('Example Notification', "enabling");
-//     let settings = {
-//         updateOnOpen: false,
-//         updateInterval: null,
-//         position: 0,
-//         box: "right"
-//     };
-
-//     let cim_indicator = new ArgosButton("asd", settings)
-//     Main.panel.addToStatusArea("collapsed-icons-menu", cim_indicator, settings.position, settings.box);
-//     // let _indicator = new HelloWorld_Indicator();
-//     // Main.panel._addToPanelBox('HeSlloWorld', _indicator, 1, Main.panel._rightBox);
-//     // Main.notify('Example Notification', "enabled");
-// }
-
-// function disable() {
-//     // Main.notify('Example Notification', "Disabling");
-//     // cim_indicator.stop();
-//     cim_indicator.destroy();
-//     cim_indicator = null;
-//     // Main.notify('Example Notification', "Disabling done");
-// }
