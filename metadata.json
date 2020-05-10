@@ -2,7 +2,7 @@
   "name": "Collapsed Icon Menu",
   "description": "To collapse icon into a unified menu",
   "uuid": "collapsed-icons-menu@tinyiu.com",
-  "schema": "org.gnome.shell.extensions.collapsed-icons-menu",
+  "settings-schema": "org.gnome.shell.extensions.collapsed-icons-menu",
   "url": "https://tinyiu.com",
   "shell-version": [
     "3.36"

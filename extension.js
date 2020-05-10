@@ -30,6 +30,7 @@ const { GObject, Gio, Gtk, GLib, St, Clutter } = imports.gi;
 const PanelMenu = imports.ui.panelMenu;
 const PopupMenu = imports.ui.popupMenu;
 const Mainloop = imports.mainloop;
+const Util = imports.misc.util;
 const Me = imports.misc.extensionUtils.getCurrentExtension();
 
 // const Extension = imports.misc.extensionUtils.getCurrentExtension();
@@ -260,12 +261,6 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
         this._hidden_status_icons = {};
         // return;
         // let label = new St.Label({ text: 'HEYO Button' });
-        let label = new St.Label({
-            y_align: Clutter.ActorAlign.CENTER,
-            text: _('…')
-        });
-        // this.actor.add_child(label);
-        
 
 
         // let menuItem = new PopupMenu.PopupMenuItem('Menu Item');
@@ -300,11 +295,30 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
             
         // menuItem.box = box;
         
-        this.submenu_nonhidden_icons = new PopupMenu.PopupSubMenuMenuItem("Icons to hide (click to hide)", false);
+        // let preferences = new PopupMenu.PopupMenuItem("Preferences", false);
+        // let prefIcon = Gio.icon_new_for_string(`${Me.path}/icons/preferences.svg`);
+        
+        // Main.notify("a", "a" + prefIcon);
+        let prefIcon = new St.Icon({
+            gicon: Gio.icon_new_for_string(`${Me.path}/icons/preferences.svg`),
+            style_class: 'system-status-icon',
+        });
+
+        Main.notify("a", "a" + prefIcon.gicon)
+        let preferences = new PopupMenu.PopupImageMenuItem("Preferences", prefIcon.gicon);
+        this.menu.addMenuItem(preferences);
+        preferences.connect("button-press-event", () => { 
+            Util.trySpawnCommandLine(`gnome-extensions prefs "${Me.metadata['uuid']}"`);
+        })
+        
+
+        this.submenu_nonhidden_icons = new PopupMenu.PopupSubMenuMenuItem("Icons to hide (click to hide)", true);
+        this.submenu_nonhidden_icons.icon.gicon = Gio.icon_new_for_string(`${Me.path}/icons/multiple-icon.svg`);
         this.menu.addMenuItem(this.submenu_nonhidden_icons);
 
 
-        this.submenu_hidden_icons = new PopupMenu.PopupSubMenuMenuItem("Hidden Icons", false);
+        this.submenu_hidden_icons = new PopupMenu.PopupSubMenuMenuItem("Hidden Icons", true);
+        this.submenu_hidden_icons.icon.gicon = Gio.icon_new_for_string(`${Me.path}/icons/file-hidden.svg`);
         this.menu.addMenuItem(this.submenu_hidden_icons);
         
         // this.aaa = box;
@@ -315,7 +329,7 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
 
 
 
-
+``
         this.menu.connect("open-state-changed", (menu, open) => {
             // Main.notify('Example Notification', "hi " + open);
             // Main.notify('Example Notification', "hi " + this);
