@@ -11,5 +11,10 @@
         <summary>Array of status icon name to hide.</summary>
       <description>An array of strings which denotes the name of status icon to collapse (hide).</description>
     </key>
+    <key type="b" name="display-raw-icon-obj-name">
+        <default>false</default>
+        <summary>Display the raw status icon object's name.</summary>
+      <description>This denotes whether to display the raw object's name in the list of icon as well. Could be useful to determine which icon to add.</description>
+    </key>
   </schema>
 </schemalist>

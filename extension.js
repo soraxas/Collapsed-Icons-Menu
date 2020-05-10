@@ -33,6 +33,9 @@ const Mainloop = imports.mainloop;
 const Util = imports.misc.util;
 const Me = imports.misc.extensionUtils.getCurrentExtension();
 
+const KEY_ICONS_TO_HIDE = "status-icons-name-to-hide";
+const KEY_DISPLAY_RAW_OBJECT_STR = "display-raw-icon-obj-name";
+
 // const Extension = imports.misc.extensionUtils.getCurrentExtension();
 // const ArgosLineView = Extension.imports.lineview.ArgosLineView;
 // const ArgosMenuItem = Extension.imports.menuitem.ArgosMenuItem;
@@ -237,7 +240,7 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
         
         // this._status_icon_to_hide = ["Caffeine"];
         // load from gsettings
-        let icons_to_hide = this._settings.get_value("status-icons-name-to-hide").deep_unpack();
+        let icons_to_hide = this._settings.get_value(KEY_ICONS_TO_HIDE).deep_unpack();
         if (!icons_to_hide) {
             icons_to_hide = []
         }
@@ -312,12 +315,12 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
         })
         
 
-        this.submenu_nonhidden_icons = new PopupMenu.PopupSubMenuMenuItem("Icons to hide (click to hide)", true);
+        this.submenu_nonhidden_icons = new PopupMenu.PopupSubMenuMenuItem("List of active icons", true);
         this.submenu_nonhidden_icons.icon.gicon = Gio.icon_new_for_string(`${Me.path}/icons/multiple-icon.svg`);
         this.menu.addMenuItem(this.submenu_nonhidden_icons);
 
 
-        this.submenu_hidden_icons = new PopupMenu.PopupSubMenuMenuItem("Hidden Icons", true);
+        this.submenu_hidden_icons = new PopupMenu.PopupSubMenuMenuItem("Collapsed Icons", true);
         this.submenu_hidden_icons.icon.gicon = Gio.icon_new_for_string(`${Me.path}/icons/file-hidden.svg`);
         this.menu.addMenuItem(this.submenu_hidden_icons);
         
@@ -470,7 +473,7 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
     
     update_gsettings() {
         let tmpVairant = new GLib.Variant('as', Array.from(this._status_icon_to_hide));
-        this._settings.set_value("status-icons-name-to-hide", tmpVairant);
+        this._settings.set_value(KEY_ICONS_TO_HIDE, tmpVairant);
     }
 
     hideIcon(name) {
@@ -549,7 +552,11 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
         let state = false;
         if (name in this._hidden_icon_menuitem)
             state = true;
-        let switchmenuitem = new PopupMenu.PopupSwitchMenuItem(name, state);
+
+        let display_name = name;
+        if (this._settings.get_boolean(KEY_DISPLAY_RAW_OBJECT_STR))
+            display_name += ":=> " + String(Main.panel.statusArea[name]);
+        let switchmenuitem = new PopupMenu.PopupSwitchMenuItem(display_name, state);
         switchmenuitem.statusButtonName = name;
         switchmenuitem.connect('toggled', (button, value) => {
             if (value) {
