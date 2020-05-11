@@ -45,6 +45,19 @@ const KEY_IGNORE_INVISIBLE_ICON = "ignore-invisible-icons";
 
 const Main = imports.ui.main;
 
+function _safe_ducktyping_apply_to_indicator(container, func) {
+    /*  this is a measure to make it perform the safe option on both
+    the container and (potentially) the indicator. This is necessary as
+    some icon has indicator and some doesn't, where some action only works
+    on indicator */
+    try {
+        func(container);
+    } catch (ex) { }
+    try {
+        // on some icons, indicator are accessed via child property
+        func(container.child);
+    } catch (ex) { }
+}
 
 var NoEventButton = GObject.registerClass(
     class NoEventButton extends St.Button {
@@ -62,39 +75,55 @@ var NoEventButton = GObject.registerClass(
             event to its contained item (this is to try and block Clutter.EventType.ENTER
                 and Clutter.EventType.MOVE) from the contained item. */
 
-        _init(indicator, statusIconName, params){
-            this.indicator = indicator;
+        _init(container, statusIconName, params){
+            this.container = container;
             this.statusIconName = statusIconName;
-            this.indicator.reactive = false;
+            _safe_ducktyping_apply_to_indicator(
+                this.container,
+                (c) => c.reactive = false
+            )
             super._init(params);
         }
-
+        
         vfunc_event(event) {
             if (event.type() == Clutter.EventType.BUTTON_PRESS) {
                 // emit it back into the container's child
-                this.indicator.emit("button-press-event", event)
+                _safe_ducktyping_apply_to_indicator(
+                    this.container,
+                    (c) => c.emit("button-press-event", event)
+                );
             }
+            if (event.type() == Clutter.EventType.BUTTON_RELEASE) {
+                // emit it back into the container's child
+                _safe_ducktyping_apply_to_indicator(
+                    this.container,
+                    (c) => c.emit("button-release-event", event)
+                );
+            }
+            /* check Clutter.EventType */
             return Clutter.EVENT_PROPAGATE;
         }
 });
 
 var HiddenStatusIcon = GObject.registerClass(
 class HiddenStatusIcon extends PopupMenu.PopupBaseMenuItem {
-    _init(container_name, indicator, mainMenu) {
+    _init(container_name, container, mainMenu) {
         this.name = container_name
-        this.indicator = indicator;
-        this.original_parent = indicator.container.get_parent();
+        this.container = container;
+        this.original_parent = container.get_parent();
         this.isDestroyed = false;
-        this.original_reactive = indicator.reactive;
+        this.original_reactive = container.reactive;
+        try {
+            this.original_reactive = this.container.child.reactive;
+        } catch (ex) {}
         // this keep track of the icon's original index
-        let _panel_icon = indicator.get_parent();
+        let _panel_icon = container.child.get_parent();
         this.original_index = _panel_icon.get_parent().get_children().indexOf(_panel_icon);
 
         const STYLE1 = 'width: 120px;';
         const STYLE2 = 'font-weight: bold;';
 
 
-        let container = this.indicator.container;
         // var ExtensionStates =
         //     [_("Unknown"),
         //     _("Enabled"),
@@ -132,7 +161,10 @@ class HiddenStatusIcon extends PopupMenu.PopupBaseMenuItem {
 
         ////////////////////////////
         //// REMOVE ORIGINAL PARENT
-        indicator.reactive = false;
+        _safe_ducktyping_apply_to_indicator(
+            container,
+            (c) => c.reactive = false
+        );
         let parent = container.get_parent();
         if (parent)
             parent.remove_actor(container);
@@ -161,7 +193,7 @@ class HiddenStatusIcon extends PopupMenu.PopupBaseMenuItem {
 
         this.icon_name_button = new St.Button({ child: icon_name });
         // this.container_button = new St.Button({ child: container });
-        this.container_button = new NoEventButton(indicator, container_name, { child: container });
+        this.container_button = new NoEventButton(container, container_name, { child: container });
     
         
         
@@ -171,7 +203,7 @@ class HiddenStatusIcon extends PopupMenu.PopupBaseMenuItem {
         // container.actor
         this.add_child(itembox);
 
-        this.new_parent = this.indicator.container.get_parent();
+        this.new_parent = this.container.get_parent();
 
 // .actor.connect('button-press-event', button => {
             //     let _indicator = Main.panel.statusArea[button.statusButtonName];
@@ -183,8 +215,7 @@ class HiddenStatusIcon extends PopupMenu.PopupBaseMenuItem {
     destroy(by_external=false) {
         // if it is destroyed by external, we can no longer access indicator, as it's freed by C backend.
         if (!by_external) {
-            let indicator = this.indicator;
-            let container = indicator.container;
+            let container = this.container;
             // remove myself
             let parent = container.get_parent();
             if (parent) {
@@ -201,7 +232,10 @@ class HiddenStatusIcon extends PopupMenu.PopupBaseMenuItem {
             }
             // reset reactive
             container.show();
-            this.indicator.reactive = this.original_reactive
+            _safe_ducktyping_apply_to_indicator(
+                this.container,
+                ((c) => c.reactive = this.original_reactive).bind(this)
+            );
 
         }
         super.destroy();
@@ -355,6 +389,7 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
     }
 
     _get_statusIcon_pairs() {
+        let name_container_pairs = {};
         /* Returns a dictionary of pairs of (String, indicator) */
         if (this._settings.get_boolean(KEY_DEEP_SEARCH)) {
 
@@ -362,59 +397,73 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
             // the indicator exists in statusArea (of which will have a nice string human-readable key)
             let name_matcher = {};
             for (let [key, value] of Object.entries(Main.panel.statusArea)) {
-                name_matcher[value] = key;
+                name_matcher[value.container] = key;
             }
-
+            
             // always construct a proxy object that combines all {left, center, right} boxes.
-            let name_indicator_pairs = {};
+
             let _canidates = [Main.panel._leftBox, Main.panel._centerBox, Main.panel._rightBox];
             for (let panel of _canidates) {
                 if (panel) {
                     for (let obj of panel.get_children()) {
                         try {
-                            // I think some extensions may have wrongly mixed up indicators and container
-                            // in the status area. We will use duck-typing, where if an object has .container, 
-                            // property, i will consider it as a proper indicator
-                            if (!obj)
-                                continue;
-                            let _indicator;
-                            if (obj.hasOwnProperty("container")) {
-                                _indicator = obj;
+                            if (obj instanceof imports.ui.panelMenu.ButtonBox) {
+                                /* The extension for legacy shell icon uses this! */
+                                // if this is the case, this would give us the list of legacy gtk icons
+                                for (let legacy_shell_icon of obj.first_child.get_children()) {
+                                    let key = "ShellTrayIcon: " + legacy_shell_icon.toString();
+                                    try {
+                                        // this can returns a readable window class name
+                                        if (legacy_shell_icon.first_child.wm_class)
+                                            key = "ShellTrayIcon: " + legacy_shell_icon.first_child.wm_class;
+                                    } catch (ex) {}
+                                    name_container_pairs[key] = legacy_shell_icon;
+                                }
                             } else {
-                                obj = obj.child;
+                                // I think some extensions may have  mixed usage of indicators and container
+                                // in the status area. We will use duck-typing, where if an object has .container, 
+                                // property, i will consider it as a proper indicator
+                                if (!obj)
+                                continue;
+                                let _indicator;
                                 if (obj.hasOwnProperty("container")) {
+                                    _indicator = obj.container;
+                                } else {
                                     _indicator = obj;
                                 }
-                            }
-                            if (!_indicator)
+                                if (!_indicator)
                                 continue;
-                            let key = name_matcher[_indicator];
-                            if (!key) {
-                                // we cannot obtain a nice name for this. Use the raw obj string representation
-                                key = _indicator.toString();
+                                let key = name_matcher[_indicator];
+                                if (!key) {
+                                    // we cannot obtain a nice name for this. Use the raw obj string representation
+                                    key = _indicator.toString();
+                                }
+                                if (key && _indicator) {}
+                                name_container_pairs[key] = _indicator;
                             }
-                            if (key && _indicator) {}
-                                name_indicator_pairs[key] = _indicator;
                         } catch (ex) {
                             this.notify("Error occurs when getting name icon pairs: " + ex)
                         }
                     }
                 }
             }
-            return name_indicator_pairs;
-        } else {
-            // use the system simple one
-            return Main.panel.statusArea
+        } 
+
+        // use the system simple one
+        for (let [key, value] of Object.entries(Main.panel.statusArea)) {
+            name_container_pairs[key] = value.container;
+            // return Main.panel.statusArea
         }
+        return name_container_pairs;
             
     }
 
 
     update() {
-        let name_indicator_pairs = this._get_statusIcon_pairs();
+        let name_container_pairs = this._get_statusIcon_pairs();
 
         let sortedName = [];
-        for (let k in name_indicator_pairs)
+        for (let k in name_container_pairs)
             sortedName[sortedName.length] = k;
         // sort case insensitive
         sortedName.sort((a, b) => {
@@ -422,17 +471,27 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
         });
         
         this.submenu_nonhidden_icons.menu.removeAll();
+        // show menu even if they are current not present in the system
+        for (const statusButtonName of this._status_icon_to_hide) {
+            if (sortedName.indexOf(statusButtonName) >= 0) 
+                // presents!
+                continue;
+            // create switches
+            let menuItem = this._createSwitchMenu(statusButtonName, true)
+            this.submenu_nonhidden_icons.menu.addMenuItem(menuItem);
+            menuItem.setToggleState(true);
+        }
         // menu for showing what icons are available to hide
         try {
             for (let statusButtonName of sortedName) {
     
-                let _indicator = name_indicator_pairs[statusButtonName];
+                let _indicator = name_container_pairs[statusButtonName];
                 
                 // display available icon to be hidden
                 if (
                     // statusButtonName in this._hidden_status_icons || 
                     (!this._settings.get_boolean(KEY_IGNORE_INVISIBLE_ICON) || _indicator.is_visible()) && 
-                    _indicator != this) {
+                    _indicator.child != this) {
                         // create switches
                         let menuItem = this._createSwitchMenu(statusButtonName)
                         this.submenu_nonhidden_icons.menu.addMenuItem(menuItem);
@@ -458,11 +517,14 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
                 // this icon should have been hidden. Ensure it.
                 try {
                     // ensure it's always in-reactive
-                    this._hidden_icon_menuitem[statusButtonName].indicator.reactive = false;
+                    _safe_ducktyping_apply_to_indicator(
+                        this._hidden_icon_menuitem[statusButtonName].container,
+                        (c) => c.reactive = false
+                    )
     
                     let parentsDiffer = false;
     
-                    if (name_indicator_pairs[statusButtonName].container.get_parent() != this._hidden_icon_menuitem[statusButtonName].new_parent) {
+                    if (name_container_pairs[statusButtonName].get_parent() != this._hidden_icon_menuitem[statusButtonName].new_parent) {
                         // parents differ!
                         parentsDiffer = true;
                     }
@@ -540,8 +602,8 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
         this._status_icon_to_hide.add(name);
         // update gsettings
         this.update_gsettings();
-        let name_indicator_pairs = this._get_statusIcon_pairs();
-        let _indicator = name_indicator_pairs[name];
+        let name_container_pairs = this._get_statusIcon_pairs();
+        let _indicator = name_container_pairs[name];
         if (!_indicator) {
             Main.notify("Collapsed-Icons-Menu", "Icon " + name + " does not exists")
             return;
@@ -565,17 +627,24 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
         // allow user to click on tray icons
         submenuItem.container_button.actor.connect('button-press-event', (button, event) => {
             // this needs to first close the main menu, then open the nested sub-menu
-            this.aaaa = button;
-            // we first try to open a sub-menu. If after doing so, it's state is open
-            this._hidden_icon_menuitem[button.statusIconName].indicator.menu.open();
-            // then we will close the main menu (because gnome cannot has two menu opened at once and it will
-            // try to close them), and perform the same action again.
-            // By doing this, we avoid closing the main menu if no sub-menu will opens anyway.
-            // E.G. useful for caffeine where it's only click action, and no menu is necessary.
-            if (this._hidden_icon_menuitem[button.statusIconName].indicator.menu.isOpen) {
-                this.menu.close()
-                this._hidden_icon_menuitem[button.statusIconName].indicator.menu.open();
+
+            const _open_menu = (_container) => {
+                // we first try to open a sub-menu. If after doing so, it's state is open
+                _container.menu.open();
+                // then we will close the main menu (because gnome cannot has two menu opened at once and it will
+                // try to close them), and perform the same action again.
+                // By doing this, we avoid closing the main menu if no sub-menu will opens anyway.
+                // E.G. useful for caffeine where it's only click action, and no menu is necessary.
+                if (_container.menu.isOpen) {
+                    this.menu.close();
+                    _container.menu.open();
+                }
+
             }
+            _safe_ducktyping_apply_to_indicator(
+                this._hidden_icon_menuitem[button.statusIconName].container,
+                _open_menu.bind(this)
+                )
             Main.notify("clicked",'this finished')
         });
 
@@ -609,19 +678,24 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
         delete this._hidden_icon_menuitem[name];
     }
 
-    _createSwitchMenu(name) {
+    _createSwitchMenu(name, phantom=false) {
+        /* phantom denotes that the icon is not currently at this system */
         let state = false;
-        if (name in this._hidden_icon_menuitem)
+        if (name in this._hidden_icon_menuitem || name in this._status_icon_to_hide)
             state = true;
 
         let display_name = name;
-        if (this._settings.get_boolean(KEY_DISPLAY_RAW_OBJECT_STR)) {
-            if (!this._settings.get_boolean(KEY_DEEP_SEARCH)) {
-                // it is safe to use Main.panel.statusArea here because we won't display raw obj name
-                // in deep search (as every name would be raw anyways)
-                display_name += ":=> " + String(Main.panel.statusArea[name]);
+        try {
+            if (this._settings.get_boolean(KEY_DISPLAY_RAW_OBJECT_STR)) {
+                if (!this._settings.get_boolean(KEY_DEEP_SEARCH)) {
+                    // it is safe to use Main.panel.statusArea here because we won't display raw obj name
+                    // in deep search (as every name would be raw anyways)
+                    display_name += ":=> " + String(Main.panel.statusArea[name]);
+                }
             }
-        }
+        } catch(ex){}
+        if (phantom)
+            display_name = "✗ " + display_name
         let switchmenuitem = new PopupMenu.PopupSwitchMenuItem(display_name, state);
         switchmenuitem.statusButtonName = name;
         switchmenuitem.connect('toggled', (button, value) => {
@@ -630,16 +704,6 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
             } else {
                 this.restoreIcon(name);
             }
-
-
-            // try {
-            //     this._status_icon_to_hide.delete(name)
-            // } catch (ex) { }
-            // this._hidden_icon_parents.delete(this._hidden_status_icons[name].hidden_icon_parent);
-
-
-
-
             button.setToggleState(value);
             this.update();
             this.submenu_hidden_icons.menu.open();
