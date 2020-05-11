@@ -35,6 +35,8 @@ const Me = imports.misc.extensionUtils.getCurrentExtension();
 
 const KEY_ICONS_TO_HIDE = "status-icons-name-to-hide";
 const KEY_DISPLAY_RAW_OBJECT_STR = "display-raw-icon-obj-name";
+const KEY_DEEP_SEARCH = "deep-search-status-icons";
+const KEY_IGNORE_INVISIBLE_ICON = "ignore-invisible-icons";
 
 // const Extension = imports.misc.extensionUtils.getCurrentExtension();
 // const ArgosLineView = Extension.imports.lineview.ArgosLineView;
@@ -353,6 +355,17 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
         Main.notify("Collapsed-icons-menu", ""+msg)
     }
 
+    _get_statusIcon_pairs() {
+        /* Returns an array of pairs of (String, indicator) */
+        if (this._settings.get_boolean(KEY_DEEP_SEARCH)) {
+
+        } else {
+
+        }
+            
+    }
+
+
     update() {
         let sortedName = [];
         for (let k in Main.panel.statusArea)
@@ -372,7 +385,7 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
                 // display available icon to be hidden
                 if (
                     // statusButtonName in this._hidden_status_icons || 
-                    _indicator.is_visible() && 
+                    (!this._settings.get_boolean(KEY_IGNORE_INVISIBLE_ICON) || _indicator.is_visible()) && 
                     _indicator != this) {
                         // create switches
                         let menuItem = this._createSwitchMenu(statusButtonName)

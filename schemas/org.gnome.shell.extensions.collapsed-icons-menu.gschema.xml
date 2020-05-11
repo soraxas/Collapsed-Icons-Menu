@@ -11,6 +11,16 @@
         <summary>Array of status icon name to hide.</summary>
       <description>An array of strings which denotes the name of status icon to collapse (hide).</description>
     </key>
+    <key type="b" name="deep-search-status-icons">
+        <default>false</default>
+        <summary>Use deep search for status icon.</summary>
+      <description>Use deep search (over all the three Main.panel._{left,center,right}Box) rather than a simple search via Main.panel.statusArea. Since the deep search uses underscore property, it might be breaks (changed by Gnome Developer) in the future.</description>
+    </key>
+    <key type="b" name="ignore-invisible-icons">
+        <default>true</default>
+        <summary>Ignore invisible icons in the "List of active icon" option.</summary>
+      <description>Generally, icons are invisible because they are inactive. Therefore, invisible icons might be disabled by the official method (so it might not be good to hide them via this extension).</description>
+    </key>
     <key type="b" name="display-raw-icon-obj-name">
         <default>false</default>
         <summary>Display the raw status icon object's name.</summary>
