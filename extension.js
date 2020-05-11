@@ -662,6 +662,7 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
             this._hidden_icon_menuitem[name].destroy(true);
         } catch (ex) {}
         delete this._hidden_icon_menuitem[name];
+        this.update()
         Main.notify("Destroyed!", 'hahaok')
     }
 
