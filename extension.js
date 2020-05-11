@@ -309,7 +309,6 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
             style_class: 'system-status-icon',
         });
 
-        Main.notify("a", "a" + prefIcon.gicon)
         let preferences = new PopupMenu.PopupImageMenuItem("Preferences", prefIcon.gicon);
         this.menu.addMenuItem(preferences);
         preferences.connect("button-press-event", () => { 
@@ -356,19 +355,66 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
     }
 
     _get_statusIcon_pairs() {
-        /* Returns an array of pairs of (String, indicator) */
+        /* Returns a dictionary of pairs of (String, indicator) */
         if (this._settings.get_boolean(KEY_DEEP_SEARCH)) {
 
-        } else {
+            // create a dict to try to match unrecognised obj to a nice name; via searching if
+            // the indicator exists in statusArea (of which will have a nice string human-readable key)
+            let name_matcher = {};
+            for (let [key, value] of Object.entries(Main.panel.statusArea)) {
+                name_matcher[value] = key;
+            }
 
+            // always construct a proxy object that combines all {left, center, right} boxes.
+            let name_indicator_pairs = {};
+            let _canidates = [Main.panel._leftBox, Main.panel._centerBox, Main.panel._rightBox];
+            for (let panel of _canidates) {
+                if (panel) {
+                    for (let obj of panel.get_children()) {
+                        try {
+                            // I think some extensions may have wrongly mixed up indicators and container
+                            // in the status area. We will use duck-typing, where if an object has .container, 
+                            // property, i will consider it as a proper indicator
+                            if (!obj)
+                                continue;
+                            let _indicator;
+                            if (obj.hasOwnProperty("container")) {
+                                _indicator = obj;
+                            } else {
+                                obj = obj.child;
+                                if (obj.hasOwnProperty("container")) {
+                                    _indicator = obj;
+                                }
+                            }
+                            if (!_indicator)
+                                continue;
+                            let key = name_matcher[_indicator];
+                            if (!key) {
+                                // we cannot obtain a nice name for this. Use the raw obj string representation
+                                key = _indicator.toString();
+                            }
+                            if (key && _indicator) {}
+                                name_indicator_pairs[key] = _indicator;
+                        } catch (ex) {
+                            this.notify("Error occurs when getting name icon pairs: " + ex)
+                        }
+                    }
+                }
+            }
+            return name_indicator_pairs;
+        } else {
+            // use the system simple one
+            return Main.panel.statusArea
         }
             
     }
 
 
     update() {
+        let name_indicator_pairs = this._get_statusIcon_pairs();
+
         let sortedName = [];
-        for (let k in Main.panel.statusArea)
+        for (let k in name_indicator_pairs)
             sortedName[sortedName.length] = k;
         // sort case insensitive
         sortedName.sort((a, b) => {
@@ -380,7 +426,7 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
         try {
             for (let statusButtonName of sortedName) {
     
-                let _indicator = Main.panel.statusArea[statusButtonName];
+                let _indicator = name_indicator_pairs[statusButtonName];
                 
                 // display available icon to be hidden
                 if (
@@ -416,7 +462,7 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
     
                     let parentsDiffer = false;
     
-                    if (Main.panel.statusArea[statusButtonName].container.get_parent() != this._hidden_icon_menuitem[statusButtonName].new_parent) {
+                    if (name_indicator_pairs[statusButtonName].container.get_parent() != this._hidden_icon_menuitem[statusButtonName].new_parent) {
                         // parents differ!
                         parentsDiffer = true;
                     }
@@ -494,7 +540,8 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
         this._status_icon_to_hide.add(name);
         // update gsettings
         this.update_gsettings();
-        let _indicator = Main.panel.statusArea[name];
+        let name_indicator_pairs = this._get_statusIcon_pairs();
+        let _indicator = name_indicator_pairs[name];
         if (!_indicator) {
             Main.notify("Collapsed-Icons-Menu", "Icon " + name + " does not exists")
             return;
@@ -568,8 +615,13 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
             state = true;
 
         let display_name = name;
-        if (this._settings.get_boolean(KEY_DISPLAY_RAW_OBJECT_STR))
-            display_name += ":=> " + String(Main.panel.statusArea[name]);
+        if (this._settings.get_boolean(KEY_DISPLAY_RAW_OBJECT_STR)) {
+            if (!this._settings.get_boolean(KEY_DEEP_SEARCH)) {
+                // it is safe to use Main.panel.statusArea here because we won't display raw obj name
+                // in deep search (as every name would be raw anyways)
+                display_name += ":=> " + String(Main.panel.statusArea[name]);
+            }
+        }
         let switchmenuitem = new PopupMenu.PopupSwitchMenuItem(display_name, state);
         switchmenuitem.statusButtonName = name;
         switchmenuitem.connect('toggled', (button, value) => {

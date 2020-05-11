@@ -14,7 +14,7 @@
     <key type="b" name="deep-search-status-icons">
         <default>false</default>
         <summary>Use deep search for status icon.</summary>
-      <description>Use deep search (over all the three Main.panel._{left,center,right}Box) rather than a simple search via Main.panel.statusArea. Since the deep search uses underscore property, it might be breaks (changed by Gnome Developer) in the future.</description>
+      <description>Use deep search (over all the three Main.panel._{left,center,right}Box) rather than a simple search via Main.panel.statusArea. Since the deep search uses underscore property, it might be breaks (changed by Gnome Developer) in the future. Use at your own risk.</description>
     </key>
     <key type="b" name="ignore-invisible-icons">
         <default>true</default>
