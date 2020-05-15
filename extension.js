@@ -655,15 +655,13 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
     }
 
     onDestroyedExternally(name) {
-        Main.notify("Destroyed!", 'haha')
         // the target indicator has been destroy. We will redo the same process to 
         // hide the icon again
         try {
             this._hidden_icon_menuitem[name].destroy(true);
         } catch (ex) {}
         delete this._hidden_icon_menuitem[name];
-        this.update()
-        Main.notify("Destroyed!", 'hahaok')
+//        this.update()
     }
 
     restoreIcon(name) {
