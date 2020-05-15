@@ -779,20 +779,36 @@ class CollapsedIconMenuExtension {
         // } catch (e) {
         //     logError(e, 'Failed to load Nautilus settings');
         // }
+        // always start at a delayed time so that other extensions will be loaded first.
+        this._delayedEnableId = null;
+        this._delayedEnableTime = 4000;
     }
-    
-    enable() {
+
+    delayedEnable() {
+        if (this._delayedEnableId != null) {
+            Mainloop.source_remove(this._delayedEnableId);
+            this._delayedEnableId = null;
+        }
         if (!this.cim_indicator) {
             this.cim_indicator = new CollapsedIconsMenu(this._settings)
             if ("collapsed-icons-menu" in Main.panel.statusArea)
                 delete Main.panel.statusArea["collapsed-icons-menu"];
             Main.panel.addToStatusArea("collapsed-icons-menu", this.cim_indicator,
-                                        this.settings.position,
-                                        this.settings.box);
+                this.settings.position,
+                this.settings.box);
         }
+    }
+
+    enable() {
+        this._delayedEnableId = Mainloop.timeout_add(this._delayedEnableTime, 
+            this.delayedEnable.bind(this));
     }
     
     disable() {
+        if (this._delayedEnableId != null) {
+            Mainloop.source_remove(this._delayedEnableId);
+            this._delayedEnableId = null;
+        }
         if (this.cim_indicator){
             this.cim_indicator.destroy();
             this.cim_indicator = null;
