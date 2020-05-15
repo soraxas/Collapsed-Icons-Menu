@@ -628,11 +628,11 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
         let name_container_pairs = this._get_statusIcon_pairs();
         let _indicator = name_container_pairs[name];
         if (!_indicator) {
-            Main.notify("Collapsed-Icons-Menu", "Icon " + name + " does not exists")
+            this.notify("Icon " + name + " does not exists")
             return;
         }
         if (name in this._hidden_icon_menuitem) {
-            Main.notify("Collapsed-Icons-Menu", "Icon " + name + " is already hidden")
+            this.notify("Icon " + name + " is already hidden")
             return;
         }
         //////////////////////////////
@@ -669,7 +669,6 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
                 this._hidden_icon_menuitem[button.statusIconName].container,
                 _open_menu.bind(this)
                 )
-            Main.notify("clicked",'this finished')
         });
 
 
@@ -696,7 +695,7 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
         // update gsettings
         this.update_gsettings();
         if (!(name in this._hidden_icon_menuitem)) {
-            Main.notify("Collapsed-Icons-Menu", "Icon " + name + " is not hidden")
+            this.notify("Icon " + name + " is not hidden")
             return;
         }
 
