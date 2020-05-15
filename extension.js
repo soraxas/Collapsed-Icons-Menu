@@ -107,18 +107,25 @@ var NoEventButton = GObject.registerClass(
 
 var HiddenStatusIcon = GObject.registerClass(
 class HiddenStatusIcon extends PopupMenu.PopupBaseMenuItem {
-    _init(container_name, container, mainMenu) {
+    _init(container_name, container, hiddenIconMenu_ptr) {
         this.name = container_name
         this.container = container;
         this.original_parent = container.get_parent();
         this.isDestroyed = false;
         this.original_reactive = container.reactive;
+        // this is the parent menu that stores this menuItem
+        // we store this reference to remove ourselves from this menu when we are destroyed
+        this.hiddenIconMenu_ptr = hiddenIconMenu_ptr;
         try {
             this.original_reactive = this.container.child.reactive;
         } catch (ex) {}
         // this keep track of the icon's original index
         let _panel_icon = container.child.get_parent();
         this.original_index = _panel_icon.get_parent().get_children().indexOf(_panel_icon);
+
+        // listen to the container's original parent's destroy event, to set it as null
+        this.original_parent.connect('destroy', () => {this.original_parent = null;});
+
 
         const STYLE1 = 'width: 120px;';
         const STYLE2 = 'font-weight: bold;';
@@ -195,8 +202,6 @@ class HiddenStatusIcon extends PopupMenu.PopupBaseMenuItem {
         // this.container_button = new St.Button({ child: container });
         this.container_button = new NoEventButton(container, container_name, { child: container });
     
-        
-        
         itembox.add_child(this.icon_name_button);
         itembox.add_child(this.container_button);
         // itembox.insert_child_at_index(container, 1);
@@ -213,6 +218,7 @@ class HiddenStatusIcon extends PopupMenu.PopupBaseMenuItem {
     restoreIcon() { this.destroy(); }
 
     destroy(by_external=false) {
+        log("HiddenStatusIcon destory " + by_external);
         // if it is destroyed by external, we can no longer access indicator, as it's freed by C backend.
         if (!by_external) {
             let container = this.container;
@@ -238,6 +244,8 @@ class HiddenStatusIcon extends PopupMenu.PopupBaseMenuItem {
             );
 
         }
+        // this.hiddenIconMenu_ptr.menu.box.remove_child(this);
+        // this.hiddenIconMenu_ptr.remove_child(this);
         super.destroy();
     }
 
@@ -372,16 +380,18 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
             // Main.notify('Example Notification', "hi " + open);
             // Main.notify('Example Notification', "hi " + this);
             if (open) {
-                this.submenu_hidden_icons.menu.open();
+                this.display_update()
                 this.update();
-                // default open the hidden icon menu
                 this.submenu_hidden_icons.menu.open();
+                // default open the hidden icon menu
+                // this.submenu_hidden_icons.menu.open();
+            } else {
             }
         });
         // Bind destory callback
         this.connect('destroy', this._onDestroy.bind(this));
         // Listen to multiple source's update, to automatically update the icon collapsing.
-        Main.sessionMode.connect('updated', () => this.update());
+        this.sessionMode_signal_id = Main.sessionMode.connect('updated', () => this.update());
     }
 
     notify(msg) {
@@ -459,6 +469,59 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
     }
 
 
+    display_update() {
+        let name_container_pairs = this._get_statusIcon_pairs();
+
+        let sortedName = [];
+        for (let k in name_container_pairs)
+            sortedName[sortedName.length] = k;
+        // sort case insensitive
+        sortedName.sort((a, b) => {
+            return a.toLowerCase().localeCompare(b.toLowerCase());
+        });
+
+        this.submenu_nonhidden_icons.menu.removeAll();
+        // show menu even if they are current not present in the system
+        for (const statusButtonName of this._status_icon_to_hide) {
+            if (sortedName.indexOf(statusButtonName) >= 0)
+                // presents!
+                continue;
+            // create switches
+            let menuItem = this._createSwitchMenu(statusButtonName, true)
+            this.submenu_nonhidden_icons.menu.addMenuItem(menuItem);
+            menuItem.setToggleState(true);
+        }
+        // menu for showing what icons are available to hide
+        try {
+            for (let statusButtonName of sortedName) {
+
+                let _indicator = name_container_pairs[statusButtonName];
+
+                // display available icon to be hidden
+                if (
+                    // statusButtonName in this._hidden_status_icons || 
+                    (!this._settings.get_boolean(KEY_IGNORE_INVISIBLE_ICON) || _indicator.is_visible()) &&
+                    (!_indicator.hasOwnProperty("child") || _indicator.child != this)) {
+                    // create switches
+                    let menuItem = this._createSwitchMenu(statusButtonName)
+                    this.submenu_nonhidden_icons.menu.addMenuItem(menuItem);
+                    if (this._status_icon_to_hide.has(statusButtonName)) {
+                        menuItem.setToggleState(true);
+                    }
+                }
+                ////////////////////////////////////////////////////////////
+                ////////////////////////////////////////////////////////////
+                // restore any icons that should be restored
+                if (statusButtonName in this._hidden_icon_menuitem && !this._status_icon_to_hide.has(statusButtonName)) {
+                    this.restoreIcon(statusButtonName);
+                }
+            }
+        } catch (ex) {
+            this.notify("Error occurs when populating icon list: " + e)
+        }
+    }
+
+
     update() {
         let name_container_pairs = this._get_statusIcon_pairs();
 
@@ -470,46 +533,6 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
             return a.toLowerCase().localeCompare(b.toLowerCase());
         });
         
-        this.submenu_nonhidden_icons.menu.removeAll();
-        // show menu even if they are current not present in the system
-        for (const statusButtonName of this._status_icon_to_hide) {
-            if (sortedName.indexOf(statusButtonName) >= 0) 
-                // presents!
-                continue;
-            // create switches
-            let menuItem = this._createSwitchMenu(statusButtonName, true)
-            this.submenu_nonhidden_icons.menu.addMenuItem(menuItem);
-            menuItem.setToggleState(true);
-        }
-        // menu for showing what icons are available to hide
-        try {
-            for (let statusButtonName of sortedName) {
-    
-                let _indicator = name_container_pairs[statusButtonName];
-                
-                // display available icon to be hidden
-                if (
-                    // statusButtonName in this._hidden_status_icons || 
-                    (!this._settings.get_boolean(KEY_IGNORE_INVISIBLE_ICON) || _indicator.is_visible()) && 
-                    _indicator.child != this) {
-                        // create switches
-                        let menuItem = this._createSwitchMenu(statusButtonName)
-                        this.submenu_nonhidden_icons.menu.addMenuItem(menuItem);
-                        if (this._status_icon_to_hide.has(statusButtonName)) {
-                            menuItem.setToggleState(true);
-                        }
-                }
-                ////////////////////////////////////////////////////////////
-                ////////////////////////////////////////////////////////////
-                // restore any icons that should be restored
-                if (statusButtonName in this._hidden_icon_menuitem && !this._status_icon_to_hide.has(statusButtonName)){
-                    this.restoreIcon(statusButtonName);
-                }
-            }
-        } catch (ex) {
-            this.notify("Error occurs when populating icon list: " + e)
-        }
-
         // hide icons
         for (let statusButtonName of sortedName) {
 
@@ -614,7 +637,7 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
         }
         //////////////////////////////
         // add new sub menu for the hidden icon
-        let submenuItem = new HiddenStatusIcon(name, _indicator, this);
+        let submenuItem = new HiddenStatusIcon(name, _indicator, this.submenu_hidden_icons);
         
         // let notify_destroyed = (name) => { this. [name].isDestroyed = true; }
         
@@ -629,6 +652,8 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
             // this needs to first close the main menu, then open the nested sub-menu
 
             const _open_menu = (_container) => {
+                if (!_container.hasOwnProperty("menu"))
+                    return;
                 // we first try to open a sub-menu. If after doing so, it's state is open
                 _container.menu.open();
                 // then we will close the main menu (because gnome cannot has two menu opened at once and it will
@@ -697,7 +722,7 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
             display_name = "✗ " + display_name
         let switchmenuitem = new PopupMenu.PopupSwitchMenuItem(display_name, state);
         switchmenuitem.statusButtonName = name;
-        switchmenuitem.connect('toggled', (button, value) => {
+        let toggleId = switchmenuitem.connect('toggled', (button, value) => {
             if (value) {
                 this.hideIcon(name);
             } else {
@@ -705,16 +730,28 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
             }
             button.setToggleState(value);
             this.update();
+            // this.menu.close();
+            // updating display within toggle will cause memory corrupts
+            // this.display_update();
+            // this.menu.open();
             this.submenu_hidden_icons.menu.open();
         });
+        let destroyId = switchmenuitem.connect("destroy", (emitter) => {
+            emitter.disconnect(toggleId);
+            emitter.disconnect(destroyId);
+        })
         return switchmenuitem;
     }
 
     destroy() {
+        // super.destroy();
+        Main.sessionMode.disconnect(this.sessionMode_signal_id);
         this.menu.removeAll();
-        this.submenu_hidden_icons.menu.removeAll();
-        this.submenu_nonhidden_icons.menu.removeAll();
-        super.destroy();
+        // this.submenu_hidden_icons = null;
+        // this.submenu_nonhidden_icons = null;
+        // this.submenu_hidden_icons.menu.removeAll();
+        // this.submenu_nonhidden_icons.menu.removeAll();
+        
     }
 });
 
@@ -722,7 +759,6 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
 
 class CollapsedIconMenuExtension {
     constructor() {
-        Main.notify('Example Notification', "con");
         this.settings = {
             updateOnOpen: false,
             updateInterval: null,
@@ -748,10 +784,14 @@ class CollapsedIconMenuExtension {
     }
     
     enable() {
-        this.cim_indicator = new CollapsedIconsMenu(this._settings)
-        Main.panel.addToStatusArea("collapsed-icons-menu", this.cim_indicator,
-                                    this.settings.position,
-                                    this.settings.box);
+        if (!this.cim_indicator) {
+            this.cim_indicator = new CollapsedIconsMenu(this._settings)
+            if ("collapsed-icons-menu" in Main.panel.statusArea)
+                delete Main.panel.statusArea["collapsed-icons-menu"];
+            Main.panel.addToStatusArea("collapsed-icons-menu", this.cim_indicator,
+                                        this.settings.position,
+                                        this.settings.box);
+        }
     }
     
     disable() {
