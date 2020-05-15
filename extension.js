@@ -271,7 +271,7 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
         // this._icon.gicon = Gio.icon_new_for_string(`${Me.path}/icons/menu-down-outline.svg`);
         this._icon.gicon = Gio.icon_new_for_string(`${Me.path}/icons/collapsed-icon.svg`);
 
-        this.actor.add_actor(this._icon);
+        this.add_actor(this._icon);
         this._hidden_icon_menuitem = {};
         
         // this._status_icon_to_hide = ["Caffeine"];
@@ -294,7 +294,7 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
         // let topBox = new St.BoxLayout();
         // topBox.add_actor(this._icon);
         // topBox.add_actor(this._panelButtonLabel);
-        // this.actor.add_actor(topBox);
+        // this.add_actor(topBox);
         //        this.menu = this;
         
         this._hidden_status_icons = {};
@@ -379,7 +379,7 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
             }
         });
         // Bind destory callback
-        this.actor.connect('destroy', this._onDestroy.bind(this));
+        this.connect('destroy', this._onDestroy.bind(this));
         // Listen to multiple source's update, to automatically update the icon collapsing.
         Main.sessionMode.connect('updated', () => this.update());
     }
@@ -625,7 +625,7 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
         this._hidden_icon_menuitem[name] = submenuItem;
         this.submenu_hidden_icons.menu.addMenuItem(this._hidden_icon_menuitem[name]);
         // allow user to click on tray icons
-        submenuItem.container_button.actor.connect('button-press-event', (button, event) => {
+        submenuItem.container_button.connect('button-press-event', (button, event) => {
             // this needs to first close the main menu, then open the nested sub-menu
 
             const _open_menu = (_container) => {
