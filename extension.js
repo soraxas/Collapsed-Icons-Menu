@@ -108,7 +108,7 @@ var NoEventButton = GObject.registerClass(
 var HiddenStatusIcon = GObject.registerClass(
 class HiddenStatusIcon extends PopupMenu.PopupBaseMenuItem {
     _init(container_name, container, hiddenIconMenu_ptr) {
-        this.name = container_name
+        this._name = container_name;
         this.container = container;
         this.original_parent = container.get_parent();
         this.isDestroyed = false;
@@ -122,10 +122,11 @@ class HiddenStatusIcon extends PopupMenu.PopupBaseMenuItem {
         // this keep track of the icon's original index
         let _panel_icon = container.child.get_parent();
         this.original_index = _panel_icon.get_parent().get_children().indexOf(_panel_icon);
-
+        
         // listen to the container's original parent's destroy event, to set it as null
+        this.container.connect('destroy', () => {this.container = null;});
         this.original_parent.connect('destroy', () => {this.original_parent = null;});
-
+        
 
         const STYLE1 = 'width: 120px;';
         const STYLE2 = 'font-weight: bold;';
@@ -163,7 +164,6 @@ class HiddenStatusIcon extends PopupMenu.PopupBaseMenuItem {
         // this.add_child(box);
         const STYLE = 'width: 120px; font-weight: bold;';
         
-
 
 
         ////////////////////////////
@@ -221,28 +221,28 @@ class HiddenStatusIcon extends PopupMenu.PopupBaseMenuItem {
         log("HiddenStatusIcon destory " + by_external);
         // if it is destroyed by external, we can no longer access indicator, as it's freed by C backend.
         if (!by_external) {
-            let container = this.container;
-            // remove myself
-            let parent = container.get_parent();
-            if (parent) {
-                parent.remove_actor(container);
-            }
-            // reset back to it's parent actor
-            if (this.original_parent) {
-                // try to restore to it's original index if it is a valid index
-                let restore_index = 0;
-                if (this.original_index >= 0) {
-                    restore_index = this.original_index;
+            if (this.container) {
+                // remove myself
+                let parent = this.container.get_parent();
+                if (parent) {
+                    parent.remove_actor(this.container);
                 }
-                this.original_parent.insert_child_at_index(container, restore_index)
+                // reset back to it's parent actor
+                if (this.original_parent) {
+                    // try to restore to it's original index if it is a valid index
+                    let restore_index = 0;
+                    if (this.original_index >= 0) {
+                        restore_index = this.original_index;
+                    }
+                    this.original_parent.insert_child_at_index(this.container, restore_index)
+                }
+                // reset reactive
+                this.container.show();
+                _safe_ducktyping_apply_to_indicator(
+                    this.container,
+                    ((c) => c.reactive = this.original_reactive).bind(this)
+                );
             }
-            // reset reactive
-            container.show();
-            _safe_ducktyping_apply_to_indicator(
-                this.container,
-                ((c) => c.reactive = this.original_reactive).bind(this)
-            );
-
         }
         // this.hiddenIconMenu_ptr.menu.box.remove_child(this);
         // this.hiddenIconMenu_ptr.remove_child(this);
@@ -517,7 +517,7 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
                 }
             }
         } catch (ex) {
-            this.notify("Error occurs when populating icon list: " + e)
+            this.notify("Error occurs when populating icon list: " + ex)
         }
     }
 
@@ -559,7 +559,7 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
                         this.onDestroyedExternally(statusButtonName)
                     }
                 } catch (ex) {
-                    this.notify("Error occurs when re-hiding: " + statusButtonName + " - " + e)
+                    this.notify("Error occurs when re-hiding: " + statusButtonName + " - " + ex)
                 }
                 // already hidden
                 continue;
@@ -569,7 +569,7 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
                 try {
                     this.hideIcon(statusButtonName);
                 }catch (ex) {
-                    this.notify("Error occurs when hiding: " + statusButtonName + " - " + e)
+                    this.notify("Error occurs when hiding: " + statusButtonName + " - " + ex)
                 }
             }
         }
@@ -638,7 +638,6 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
         //////////////////////////////
         // add new sub menu for the hidden icon
         let submenuItem = new HiddenStatusIcon(name, _indicator, this.submenu_hidden_icons);
-        
         // let notify_destroyed = (name) => { this. [name].isDestroyed = true; }
         
         _indicator.connect("destroy", this.onDestroyedExternally.bind(this, name));
@@ -681,11 +680,14 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
 
     onDestroyedExternally(name) {
         // the target indicator has been destroy. We will redo the same process to 
-        // hide the icon again
+        // hide the icon aga
+        // try {
+        //     if(name in this._hidden_icon_menuitem)
+        //         this._hidden_icon_menuitem[name].destroy(true);
+        // } catch (ex) {}
         try {
-            this._hidden_icon_menuitem[name].destroy(true);
+            delete this._hidden_icon_menuitem[name];
         } catch (ex) {}
-        delete this._hidden_icon_menuitem[name];
 //        this.update()
     }
 
@@ -744,14 +746,10 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
     }
 
     destroy() {
-        // super.destroy();
         Main.sessionMode.disconnect(this.sessionMode_signal_id);
         this.menu.removeAll();
         // this.submenu_hidden_icons = null;
         // this.submenu_nonhidden_icons = null;
-        // this.submenu_hidden_icons.menu.removeAll();
-        // this.submenu_nonhidden_icons.menu.removeAll();
-        
     }
 });
 
