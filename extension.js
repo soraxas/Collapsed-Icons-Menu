@@ -218,7 +218,6 @@ class HiddenStatusIcon extends PopupMenu.PopupBaseMenuItem {
     restoreIcon() { this.destroy(); }
 
     destroy(by_external=false) {
-        log("HiddenStatusIcon destory " + by_external);
         // if it is destroyed by external, we can no longer access indicator, as it's freed by C backend.
         if (!by_external) {
             if (this.container) {
@@ -735,7 +734,7 @@ const CollapsedIconsMenu = GObject.registerClass(class CollapsedIconsMenu extend
             // updating display within toggle will cause memory corrupts
             // this.display_update();
             // this.menu.open();
-            this.submenu_hidden_icons.menu.open();
+            // this.submenu_hidden_icons.menu.open();
         });
         let destroyId = switchmenuitem.connect("destroy", (emitter) => {
             emitter.disconnect(toggleId);
@@ -780,7 +779,7 @@ class CollapsedIconMenuExtension {
         // }
         // always start at a delayed time so that other extensions will be loaded first.
         this._delayedEnableId = null;
-        this._delayedEnableTime = 4000;
+        this._delayedEnableTime = 3000;
     }
 
     delayedEnable() {
@@ -790,8 +789,6 @@ class CollapsedIconMenuExtension {
         }
         if (!this.cim_indicator) {
             this.cim_indicator = new CollapsedIconsMenu(this._settings)
-            if ("collapsed-icons-menu" in Main.panel.statusArea)
-                delete Main.panel.statusArea["collapsed-icons-menu"];
             Main.panel.addToStatusArea("collapsed-icons-menu", this.cim_indicator,
                 this.settings.position,
                 this.settings.box);
