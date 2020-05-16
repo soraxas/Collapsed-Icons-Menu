@@ -546,7 +546,7 @@ const CollapsedIconsMenu = GObject.registerClass(
         }
       });
       // Bind destory callback
-      this.connect("destroy", this._onDestroy.bind(this));
+      // this.connect("destroy", this._onDestroy.bind(this));
       // Listen to multiple source's update, to automatically update the icon collapsing.
       this.sessionMode_signal_id = Main.sessionMode.connect("updated", () =>
         this.update()
@@ -914,7 +914,7 @@ const CollapsedIconsMenu = GObject.registerClass(
         state
       );
       switchmenuitem.statusButtonName = name;
-      let toggleId = switchmenuitem.connect("toggled", (button, value) => {
+      switchmenuitem.connect("toggled", (button, value) => {
         if (value) {
           this.hideIcon(name);
         } else {
@@ -928,18 +928,16 @@ const CollapsedIconsMenu = GObject.registerClass(
         // this.menu.open();
         // this.submenu_hidden_icons.menu.open();
       });
-      let destroyId = switchmenuitem.connect("destroy", (emitter) => {
-        emitter.disconnect(toggleId);
-        emitter.disconnect(destroyId);
-      });
       return switchmenuitem;
     }
 
     destroy() {
       Main.sessionMode.disconnect(this.sessionMode_signal_id);
-      this.menu.removeAll();
+      // this.menu.removeAll();
       // this.submenu_hidden_icons = null;
       // this.submenu_nonhidden_icons = null;
+      super.destroy();
+      // this.emit("destroy");
     }
   }
 );
