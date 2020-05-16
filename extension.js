@@ -498,9 +498,14 @@ const CollapsedIconsMenu = GObject.registerClass(
           `gnome-extensions prefs "${Me.metadata["uuid"]}"`
         );
       });
+      let blacklistIcon = new St.Icon({
+        gicon: Gio.icon_new_for_string(`${Me.path}/icons/blacklist.svg`),
+        style_class: "system-status-icon",
+      });
+
       let blacklist = new PopupMenu.PopupImageMenuItem(
         "Blacklist indicators",
-        prefIcon.gicon
+        blacklistIcon.gicon
       );
       this.menu.addMenuItem(blacklist);
       blacklist.connect(
