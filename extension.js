@@ -27,11 +27,13 @@
 const { GObject, Gio, Gtk, GLib, St, Clutter } = imports.gi;
 const PanelMenu = imports.ui.panelMenu;
 const PopupMenu = imports.ui.popupMenu;
+const ModalDialog = imports.ui.modalDialog;
 const Mainloop = imports.mainloop;
 const Util = imports.misc.util;
 const Me = imports.misc.extensionUtils.getCurrentExtension();
 
 const KEY_ICONS_TO_HIDE = "status-icons-name-to-hide";
+const KEY_BLACKLISTED_ICONS = "blacklist-of-nonhidden-icons";
 const KEY_DISPLAY_RAW_OBJECT_STR = "display-raw-icon-obj-name";
 const KEY_DEEP_SEARCH = "deep-search-status-icons";
 const KEY_IGNORE_INVISIBLE_ICON = "ignore-invisible-icons";
@@ -56,6 +58,148 @@ function _safe_ducktyping_apply_to_indicator(container, func) {
     func(container.child);
   } catch (ex) {}
 }
+
+const BlacklistDialog = GObject.registerClass(
+  class BlacklistDialog extends ModalDialog.ModalDialog {
+    _init(name_container_pairs, gsetting) {
+      super._init({
+        styleClass: "extension-dialog",
+        shellReactive: true,
+      });
+
+      this._settings = gsetting;
+      this.switches = [];
+      this.blacklistedIcons = this._settings
+        .get_value(KEY_BLACKLISTED_ICONS)
+        .deep_unpack();
+      this.blacklistedIcons = new Set(this.blacklistedIcons);
+
+      this.setButtons([
+        {
+          label: "Cancel",
+          action: this._onCancel.bind(this),
+          key: Clutter.Escape,
+        },
+        {
+          label: "OK",
+          action: this._onOk.bind(this),
+          default: true,
+        },
+      ]);
+
+      let box = new St.BoxLayout({ vertical: true });
+      this.box = box;
+      this.contentLayout.add(box);
+
+      let gicon = new Gio.FileIcon({
+        file: Gio.file_new_for_path(Me.path + "/icons/collapsed-icon.svg"),
+      });
+      let icon = new St.Icon({ gicon: gicon });
+
+      box.add(icon);
+
+      box.add(
+        new St.Label({
+          text: "Add icons name to ignore by the extension.",
+          x_align: Clutter.ActorAlign.CENTER,
+          style_class: "title-label",
+        })
+      );
+      //   box.add(
+      //     new St.Label({
+      //       text: "AboutDialogTest Version " + Me.metadata.version,
+      //       x_align: Clutter.ActorAlign.CENTER,
+      //       style_class: "title-label",
+      //     })
+      //   );
+      // box.add(
+      //   new St.Label({
+      //     text: "GNOME Shell extension to display an About Dialog.",
+      //     x_align: Clutter.ActorAlign.CENTER,
+      //   })
+      // );
+      // box.add(
+      //   new St.Label({
+      //     text: "This program comes with absolutely no warranty.",
+      //     x_align: Clutter.ActorAlign.CENTER,
+      //     style_class: "warn-label",
+      //   })
+      // );
+      // box.add(
+      //   new St.Label({
+      //     text: "Copyright © 2017-2018 BlahBlahBlah",
+      //     x_align: Clutter.ActorAlign.CENTER,
+      //     style_class: "copyright-label",
+      //   })
+      // );
+
+      this._build(name_container_pairs);
+      this.open(global.get_current_time());
+    }
+
+    _build(name_container_pairs) {
+      let sortedName = [];
+      for (let k in name_container_pairs) sortedName[sortedName.length] = k;
+      // sort case insensitive
+      sortedName.sort((a, b) => {
+        return a.toLowerCase().localeCompare(b.toLowerCase());
+      });
+      let iconsToHide = this._settings
+        .get_value(KEY_ICONS_TO_HIDE)
+        .deep_unpack();
+      let truncated = false;
+      let i = 0;
+      const limits = 22;
+
+      for (let statusButtonName of sortedName) {
+        if (
+          iconsToHide.indexOf(statusButtonName) >= 0 ||
+          this.blacklistedIcons.has(statusButtonName)
+        ) {
+          continue;
+        }
+
+        let _switchItem = new PopupMenu.PopupSwitchMenuItem(
+          statusButtonName,
+          false
+        );
+        this.box.add(_switchItem);
+        this.switches.push([_switchItem, statusButtonName]);
+        if (i >= limits) {
+          truncated = true;
+          break;
+        }
+        i++;
+      }
+
+      if (truncated) {
+        dialog.box.add(
+          new St.Label({
+            text:
+              ">>> " + (sortedName.length - i) + " outputs truncated...... <<<",
+          })
+        );
+      }
+    }
+
+    _onCancel(button, event) {
+      this.close(global.get_current_time());
+    }
+
+    _onOk(button, event) {
+      for (let s of this.switches)
+        if (s[0].state) this.blacklistedIcons.add(s[1]);
+
+      let tmpVairant = new GLib.Variant(
+        "as",
+        Array.from(this.blacklistedIcons)
+      );
+      this._settings.set_value(KEY_BLACKLISTED_ICONS, tmpVairant);
+
+      this.close(global.get_current_time());
+    }
+  }
+);
 
 var NoEventButton = GObject.registerClass(
   class NoEventButton extends St.Button {
@@ -354,6 +498,15 @@ const CollapsedIconsMenu = GObject.registerClass(
           `gnome-extensions prefs "${Me.metadata["uuid"]}"`
         );
       });
+      let blacklist = new PopupMenu.PopupImageMenuItem(
+        "Blacklist indicators",
+        prefIcon.gicon
+      );
+      this.menu.addMenuItem(blacklist);
+      blacklist.connect(
+        "button-press-event",
+        () => new BlacklistDialog(this._get_statusIcon_pairs(), this._settings)
+      );
 
       this.submenu_nonhidden_icons = new PopupMenu.PopupSubMenuMenuItem(
         "List of active icons",
@@ -487,6 +640,11 @@ const CollapsedIconsMenu = GObject.registerClass(
         return a.toLowerCase().localeCompare(b.toLowerCase());
       });
 
+      this.blacklistedIcons = this._settings
+        .get_value(KEY_BLACKLISTED_ICONS)
+        .deep_unpack();
+      this.blacklistedIcons = new Set(this.blacklistedIcons);
+
       this.submenu_nonhidden_icons.menu.removeAll();
       // show menu even if they are current not present in the system
       for (const statusButtonName of this._status_icon_to_hide) {
@@ -501,6 +659,7 @@ const CollapsedIconsMenu = GObject.registerClass(
       // menu for showing what icons are available to hide
       try {
         for (let statusButtonName of sortedName) {
+          if (this.blacklistedIcons.has(statusButtonName)) continue;
           let _indicator = name_container_pairs[statusButtonName];
 
           // display available icon to be hidden
